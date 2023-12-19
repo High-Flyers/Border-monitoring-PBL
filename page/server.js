@@ -1,7 +1,15 @@
+// Express and http server
 const express = require('express');
 const http = require('http');
 const server = express();
 const http_server = http.createServer(server);
+
+// Database
+const sqlite3 = require('sqlite3').verbose();
+const db = new sqlite3.Database('./pbl-2023.db');
+db.run('CREATE TABLE IF NOT EXISTS detections (id INT, data LONGTEXT);');
+
+// Socket
 const { Server } = require("socket.io");
 const io = new Server(http_server);
 
@@ -30,9 +38,18 @@ server.post('/detection', (req, res) => {
 
     res.send("OK");
 
+    // Send to clients
     users.forEach(u => {
         u.emit("new_detection", req.body);
     });
+
+    // Save to DB
+    db.run(`INSERT INTO detections(data) VALUES(?)`,
+        [JSON.stringify(req.body)],
+        function (error) {
+            console.log("New record added with ID " + this.lastID);
+        }
+    );
 })
 
 let users = [];
@@ -41,7 +58,13 @@ io.on('connection', (socket) => {
     users.push(socket);
     console.log('a user connected');
 
+
     // Add all detection in DB
+    db.all("SELECT data FROM detections", (error, rows) => {
+        rows.forEach((row) => {
+            socket.emit("new_detection", JSON.parse(row.data));
+        })
+    });
 
     socket.on('disconnect', () => {
         users = users.filter(s => s != socket);
