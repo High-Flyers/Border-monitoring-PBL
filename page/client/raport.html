@@ -24,19 +24,40 @@
             </div>
         </nav>
     </div>
-    <div id="scrollable-window">
-
-        <div class="item">
-            <img src="../public/img1.png" alt="Zdjęcie 1">
-            <p>Data: x, Godzina: y, Lokalizacja: z</p>
+    <div class="raport_background">
+        <div id="main_container">
+            <h3><span class="first_two_words">Real-Time</span> Drone Data:</h3>
         </div>
-        <div class="item">
-            <img src="../public/img2.png" alt="Zdjęcie 2">
-            <p>Data: x, Godzina: y, Lokalizacja: z</p>
-        </div>
-
     </div>
 
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        function createDetection(data) {
+            const container = document.getElementById('main_container')
+
+            const detection = document.createElement("div");
+            detection.classList.add("id_container");
+
+            const date = new Date(data.timestamp * 1000).toLocaleString('en-GB', { timeZone: 'UTC' });
+
+            const info_container = document.createElement("div");
+            info_container.classList.add("info_container");
+            info_container.innerHTML = `<h3> Time: ${date}, <br> Latitude: ${data.latitude}, <br> Longitude: ${data.longitude}</h4>`;
+            detection.appendChild(info_container);
+
+            const img = document.createElement('img');
+            img.classList.add('image_container');
+            img.src = `data:image/png;base64, ${data.image}`;
+            detection.appendChild(img);
+
+            container.appendChild(detection);
+        }
+
+        var socket = io();
+        socket.on("new_detection", (det) => {
+            createDetection(det);
+        });
+    </script>
 </body>
 
 </html>

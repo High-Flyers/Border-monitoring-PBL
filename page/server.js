@@ -1,5 +1,9 @@
 const express = require('express');
+const http = require('http');
 const server = express();
+const http_server = http.createServer(server);
+const { Server } = require("socket.io");
+const io = new Server(http_server);
 
 server.use(express.static(__dirname + '/client'));
 server.use(express.json({ limit: '10mb' }))
@@ -24,9 +28,26 @@ server.post('/detection', (req, res) => {
         return;
     }
 
-    res.send("OK")
+    res.send("OK");
+
+    users.forEach(u => {
+        u.emit("new_detection", req.body);
+    });
 })
 
-server.listen(3000, () => {
+let users = [];
+
+io.on('connection', (socket) => {
+    users.push(socket);
+    console.log('a user connected');
+
+    // Add all detection in DB
+
+    socket.on('disconnect', () => {
+        users = users.filter(s => s != socket);
+    });
+});
+
+http_server.listen(3000, () => {
     console.log('listening on *:3000');
 });
