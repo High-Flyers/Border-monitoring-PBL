@@ -14,7 +14,7 @@ const { Server } = require("socket.io");
 const io = new Server(http_server);
 
 server.use(express.static(__dirname + '/client'));
-server.use(express.json({ limit: '10mb' }))
+server.use(express.json({ limit: '20mb' }))
 server.use(express.urlencoded({ extended: true }));
 
 server.get('/', (req, res) => {
@@ -26,8 +26,6 @@ server.get('/raport', (req, res) => {
 })
 
 server.post('/detection', (req, res) => {
-    console.log(req.body);
-
     if (req.body.image === undefined ||
         req.body.timestamp === undefined ||
         req.body.latitude === undefined ||
@@ -51,6 +49,12 @@ server.post('/detection', (req, res) => {
         }
     );
 })
+
+server.get("/reset-db", (req, res) => {
+    db.run(`DELETE FROM detections`);
+
+    res.send("OK");
+});
 
 let users = [];
 
