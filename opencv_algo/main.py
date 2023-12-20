@@ -16,8 +16,8 @@ def detect(img):
                                 255, 
                                 cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
                                 cv2.THRESH_BINARY, 
-                                81, 
-                                10)
+                                101, 
+                                15)
     # cv2.imshow("ADAPTIVE", im)
     # cv2.waitKey(0)
 
@@ -32,14 +32,15 @@ def detect(img):
     # Filter by Area.
     params.filterByArea = True
     params.minArea = 50
+    params.maxArea = 200
     
     # Filter by Circularity
     params.filterByCircularity = True
-    params.minCircularity = 0.01
+    params.minCircularity = 0.2
     
     # Filter by Convexity
     params.filterByConvexity = True
-    params.minConvexity = 0.2
+    params.minConvexity = 0.4
     
     # Filter by Inertia
     params.filterByInertia = True
@@ -57,21 +58,17 @@ def detect(img):
 
     return im_with_keypoints
 
-vidcap = cv2.VideoCapture('video47.mp4')
+vidcap = cv2.VideoCapture('./opencv_algo/video46.mp4')
 success,image = vidcap.read()
 count = 0
 success = True
 while success:
   success,image = vidcap.read()
-  if(count < 279):
-    count += 1
-    continue
 
   print(count)
   count += 1
   image = image[20:303, 43:447]
   im = detect(image)
-#   grey_3_channel = cv2.cvtColor(im, cv2.COLOR_GRAY2BGR)
 
   numpy_horizontal = np.hstack((image, im))
   cv2.imshow('Numpy Horizontal', numpy_horizontal)
