@@ -1,52 +1,60 @@
 import cv2
-import os
 import time
 import subprocess
 import base64
 from io import BytesIO
 import requests
 
-img = cv2.imread("ok.png")
+SERVER_URL = "http://127.0.0.1:3000/detection"
+MODEL_URL = "http://127.0.0.1:9001/pbl-2023/2?api_key=[apikey]"
 
-start = time.time()
-_, encoded = cv2.imencode(".png", img)
-base64_image = base64.b64encode(encoded.tobytes()).decode('utf-8')
+# img = cv2.imread("ok.png")
 
-data = {"timestamp": 12345, "latitude": 90, "longitude": 12, "image": base64_image}
+# start = time.time()
+# _, encoded = cv2.imencode(".png", img)
+# base64_image = base64.b64encode(encoded.tobytes()).decode('utf-8')
 
-# Send detection to server
-res = requests.post("http://127.0.0.1:3000/detection", json=data)
-print(res.text)
+# data = {"timestamp": 12345, "latitude": 90, "longitude": 12, "image": base64_image}
 
-# Get detections from roboflow model
+# # Send detection to server
+# res = requests.post("http://127.0.0.1:3000/detection", json=data)
+# print(res.text)
 
-headers = {"Content-Type": "application/x-www-form-urlencoded"}
-res = requests.post("http://127.0.0.1:9001/pbl-2023/2?api_key=kY5y1URLQQGG8D9Fp5LP", data=base64_image, headers=headers)
-print(res.text)
+# # Get detections from roboflow model
 
-# out = subprocess.check_output(f"base64 /tmp/detection.png | curl -d @- \"http://127.0.0.1:9001/pbl-2023/2?api_key=kY5y1URLQQGG8D9Fp5LP\"", shell=True, text=True)
-end = time.time()
-print(end - start)
+# headers = {"Content-Type": "application/x-www-form-urlencoded"}
+# res = requests.post("http://127.0.0.1:9001/pbl-2023/2?api_key=kY5y1URLQQGG8D9Fp5LP", data=base64_image, headers=headers)
+# print(res.text)
 
-# cap = cv2.VideoCapture(0)
+# end = time.time()
+# print(end - start)
 
-# width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-# height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+cap = cv2.VideoCapture(0)
 
-# while True:
-#     ret, frame = cap.read()
+while True:
+    ret, frame = cap.read()
 
-#     cv2.namedWindow('frame', cv2.WND_PROP_FULLSCREEN)
-#     cv2.setWindowProperty('frame', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-#     cv2.imshow('frame', frame)
+    cv2.namedWindow('frame', cv2.WND_PROP_FULLSCREEN)
+    cv2.setWindowProperty('frame', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+    cv2.imshow('frame', frame)
 
-#     key = cv2.waitKey(1)
-#     if key == 27:
-#         break
+    _, encoded = cv2.imencode(".png", frame)
+    base64_image = base64.b64encode(encoded.tobytes()).decode('utf-8')
 
-# # Check if writer is not None before trying to release it
-# if writer is not None:
-#     writer.release()
+    # Get detections from roboflow model
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    res = requests.post(MODEL_URL, data=base64_image, headers=headers)
+    print(res.text)
 
-# cap.release()
-# cv2.destroyAllWindows()
+    # Send detection to server
+    data = {"timestamp": int(time.time()), "latitude": 90, "longitude": 12, "image": base64_image}
+
+    res = requests.post(SERVER_URL, json=data)
+    print(res.text)
+
+    key = cv2.waitKey(1)
+    if key == 27:
+        break
+
+cap.release()
+cv2.destroyAllWindows()
