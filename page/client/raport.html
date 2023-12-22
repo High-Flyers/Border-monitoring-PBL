@@ -20,6 +20,7 @@
                 <ul>
                     <li><a href="./">Mapa</a></li>
                     <li><a href="./raport">Raport</a></li>
+                    <li><a href="./stream">Live feed</a></li>
                 </ul>
             </div>
         </nav>
@@ -54,10 +55,13 @@
         }
 
         var socket = io();
+
         socket.on("new_detection", (det) => {
             createDetection(det);
         });
-    </script>
+
+        socket.emit("new_client");
+</script>
 </body>
 
 </html>

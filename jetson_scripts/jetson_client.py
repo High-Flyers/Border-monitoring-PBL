@@ -4,9 +4,22 @@ import subprocess
 import base64
 from io import BytesIO
 import requests
+import socketio
 
 SERVER_URL = "http://127.0.0.1:3000/detection"
 MODEL_URL = "http://127.0.0.1:9001/pbl-2023/2?api_key=[apikey]"
+
+sio = socketio.Client()
+
+@sio.event
+def connect():
+    print('connection established')
+
+@sio.event
+def disconnect():
+    print('disconnected from server')
+
+sio.connect('http://localhost:3000')
 
 # img = cv2.imread("ok.png")
 
@@ -35,22 +48,24 @@ while True:
     ret, frame = cap.read()
 
     cv2.namedWindow('frame', cv2.WND_PROP_FULLSCREEN)
-    cv2.setWindowProperty('frame', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+    cv2.setWindowProperty('frame', 200,200)
     cv2.imshow('frame', frame)
 
     _, encoded = cv2.imencode(".png", frame)
     base64_image = base64.b64encode(encoded.tobytes()).decode('utf-8')
 
+    sio.emit("stream", base64_image)
+
     # Get detections from roboflow model
-    headers = {"Content-Type": "application/x-www-form-urlencoded"}
-    res = requests.post(MODEL_URL, data=base64_image, headers=headers)
-    print(res.text)
+    # headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    # res = requests.post(MODEL_URL, data=base64_image, headers=headers)
+    # print(res.text)
 
-    # Send detection to server
-    data = {"timestamp": int(time.time()), "latitude": 90, "longitude": 12, "image": base64_image}
+    # # Send detection to server
+    # data = {"timestamp": int(time.time()), "latitude": 90, "longitude": 12, "image": base64_image}
 
-    res = requests.post(SERVER_URL, json=data)
-    print(res.text)
+    # res = requests.post(SERVER_URL, json=data)
+    # print(res.text)
 
     key = cv2.waitKey(1)
     if key == 27:

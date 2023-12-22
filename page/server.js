@@ -25,6 +25,10 @@ server.get('/raport', (req, res) => {
     res.sendFile("./client/raport.html", { root: __dirname });
 })
 
+server.get('/stream', (req, res) => {
+    res.sendFile("./client/stream.html", { root: __dirname });
+})
+
 server.post('/detection', (req, res) => {
     if (req.body.image === undefined ||
         req.body.timestamp === undefined ||
@@ -59,18 +63,27 @@ server.get("/reset-db", (req, res) => {
 let users = [];
 
 io.on('connection', (socket) => {
-    users.push(socket);
-    console.log('a user connected');
+    socket.on("new_client", ()=>{
+        users.push(socket);
+        console.log('a user connected');
 
-
-    // Add all detection in DB
-    db.all("SELECT data FROM detections", (error, rows) => {
+        // Add all detection in DB
+        db.all("SELECT data FROM detections", (error, rows) => {
         rows.forEach((row) => {
             socket.emit("new_detection", JSON.parse(row.data));
         })
     });
+    })
+
+    socket.on("stream", (image)=>{
+        // Send to clients
+        users.forEach(u => {
+            u.emit("stream", image);
+        });
+    })
 
     socket.on('disconnect', () => {
+        console.log('a user disconnected');
         users = users.filter(s => s != socket);
     });
 });
