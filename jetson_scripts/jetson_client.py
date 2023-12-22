@@ -19,7 +19,7 @@ def connect():
 def disconnect():
     print('disconnected from server')
 
-sio.connect('http://localhost:3000')
+sio.connect('http://89.38.128.27:3000')
 
 # img = cv2.imread("ok.png")
 
@@ -42,14 +42,22 @@ sio.connect('http://localhost:3000')
 # end = time.time()
 # print(end - start)
 
-cap = cv2.VideoCapture(0)
+# cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture('opencv_algo/video46.mp4')
 
-while True:
+while cap.isOpened():
     ret, frame = cap.read()
 
-    cv2.namedWindow('frame', cv2.WND_PROP_FULLSCREEN)
-    cv2.setWindowProperty('frame', 200,200)
-    cv2.imshow('frame', frame)
+    if not ret:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        continue
+
+    try:
+        cv2.namedWindow('frame')
+        cv2.setWindowProperty('frame', 200, 200)
+        cv2.imshow('frame', frame)
+    except:
+        continue
 
     _, encoded = cv2.imencode(".png", frame)
     base64_image = base64.b64encode(encoded.tobytes()).decode('utf-8')
@@ -66,6 +74,8 @@ while True:
 
     # res = requests.post(SERVER_URL, json=data)
     # print(res.text)
+
+    time.sleep(0.05)
 
     key = cv2.waitKey(1)
     if key == 27:
