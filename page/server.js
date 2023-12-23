@@ -35,15 +35,20 @@ server.get("/map", (req, res) => {
 })
 
 server.post('/detection', (req, res) => {
-    if (req.body.image === undefined ||
+    if (req.body.predictions === undefined ||
         req.body.timestamp === undefined ||
         req.body.latitude === undefined ||
-        req.body.longitude === undefined) {
+        req.body.longitude === undefined ||
+        req.body.image == undefined) {
         res.send("Error in data");
         return;
     }
 
+    console.log(req.body)
+
     res.send("OK");
+
+    // TODO Group detections
 
     // Send to clients
     users.forEach(u => {
