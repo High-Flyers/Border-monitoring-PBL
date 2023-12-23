@@ -8,6 +8,9 @@ import socketio
 from dotenv import load_dotenv
 import os
 
+# Run roboflow server
+# sudo docker run -it --net=host roboflow/roboflow-inference-server-cpu:latest
+
 load_dotenv()
 API_KEY = os.getenv("API_KEY")
 
@@ -43,27 +46,6 @@ def disconnect():
     print('disconnected from server')
 
 sio.connect('http://127.0.0.1:3000')
-
-# img = cv2.imread("ok.png")
-
-# start = time.time()
-# _, encoded = cv2.imencode(".png", img)
-# base64_image = base64.b64encode(encoded.tobytes()).decode('utf-8')
-
-# data = {"timestamp": 12345, "latitude": 90, "longitude": 12, "image": base64_image}
-
-# # Send detection to server
-# res = requests.post("http://127.0.0.1:3000/detection", json=data)
-# print(res.text)
-
-# # Get detections from roboflow model
-
-# headers = {"Content-Type": "application/x-www-form-urlencoded"}
-# res = requests.post("http://127.0.0.1:9001/pbl-2023/2?api_key=kY5y1URLQQGG8D9Fp5LP", data=base64_image, headers=headers)
-# print(res.text)
-
-# end = time.time()
-# print(end - start)
 
 # cap = cv2.VideoCapture(0)
 cap = cv2.VideoCapture('opencv_algo/video46.mp4')

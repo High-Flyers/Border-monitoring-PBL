@@ -48,7 +48,23 @@ server.post('/detection', (req, res) => {
 
     res.send("OK");
 
+    // Each detection has:
+    // - last bbox on image
+    // - path (list of drone positions)
+    // - first frame
+    // - timestamp
+    // - inactive frames
+
+    // Algo:
+    // Loop through detections from yolo, 
+    // Loop through current detections,
+    // If IOU is greater then X, classify yolo detection to current detection
+    // 
+
     // TODO Group detections
+    // for (let i = 0; i < detections.length; i++) {
+    //     if (detections)
+    // }
 
     // Send to clients
     users.forEach(u => {
@@ -111,9 +127,34 @@ server.get("/end-mission", (req, res) => {
     res.send("Ended mission");
 })
 
+function iou(box1, box2) {
+    const x1 = box1.x;
+    const y1 = box1.y;
+    const w1 = box1.width;
+    const h1 = box1.height;
+
+    const x2 = box2.x;
+    const y2 = box2.y;
+    const w2 = box2.width;
+    const h2 = box2.height;
+
+    const intersectionX = Math.max(0, Math.min(x1 + w1, x2 + w2) - Math.max(x1, x2));
+    const intersectionY = Math.max(0, Math.min(y1 + h1, y2 + h2) - Math.max(y1, y2));
+    const intersectionArea = intersectionX * intersectionY;
+
+    // Calculate the union area
+    const unionArea = w1 * h1 + w2 * h2 - intersectionArea;
+
+    // Calculate IOU
+    const iou = unionArea === 0 ? 0 : intersectionArea / unionArea;
+
+    return iou;
+}
+
 let current_mission = null;
 let users = [];
-let drone;
+let drone = null;
+let detections = [];
 
 io.on('connection', (socket) => {
     socket.on("new_client", () => {
