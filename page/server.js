@@ -1,4 +1,5 @@
 // Express and http server
+const { deepStrictEqual } = require('assert');
 const express = require('express');
 const { copyFileSync } = require('fs');
 const http = require('http');
@@ -44,40 +45,53 @@ server.post('/detection', (req, res) => {
         return;
     }
 
-    console.log(req.body)
-
     res.send("OK");
 
-    // Each detection has:
-    // - last bbox on image
-    // - path (list of drone positions)
-    // - first frame
-    // - timestamp
-    // - inactive frames
+    let usedDetections = [];
+    let yolo_detections = JSON.parse(req.body.predictions).predictions;
 
-    // Algo:
-    // Loop through detections from yolo, 
-    // Loop through current detections,
-    // If IOU is greater then X, classify yolo detection to current detection
-    // 
+    for (let i = 0; i < yolo_detections.length; i++) {
+        const detection = yolo_detections[i];
+        let isUsed = false;
+        for (let j = 0; j < detections.length; j++) {
+            if (distBetweenCenters(detection, detections[j].last_bbox) < MAX_DIST) {
+                detections[j].path.push({ "latitude": req.body.latitude, "longitude": req.body.longitude });
+                usedDetections.push(j);
+                isUsed = true;
+                break;
+            }
+        }
 
-    // TODO Group detections
-    // for (let i = 0; i < detections.length; i++) {
-    //     if (detections)
-    // }
+        if (!isUsed) {
+            detections.push({
+                timestamp: parseInt(Date.now() / 1000),
+                inactive_frames: 0,
+                first_frame: req.body.image,
+                path: [{ "latitude": req.body.latitude, "longitude": req.body.longitude }],
+                last_bbox: detection
+            });
+        }
+    }
 
-    // Send to clients
-    users.forEach(u => {
-        u.emit("new_detection", req.body);
-    });
+    for (let i = 0; i < detections.length; i++) {
+        if (!usedDetections.includes(i)) {
+            detections[i].inactive_frames++;
+        }
+
+        if (detections[i].inactive_frames >= MAX_INACTIVE_FRAMES) {
+            // Save to DB, send to user
+            console.log("Saving detection", detections[i]);
+            detections.splice(i, 1);
+        }
+    }
 
     // Save to DB
-    db.run(`INSERT INTO detections(data) VALUES(?)`,
-        [JSON.stringify(req.body)],
-        function (error) {
-            console.log("New record added with ID " + this.lastID);
-        }
-    );
+    // db.run(`INSERT INTO detections(data) VALUES(?)`,
+    //     [JSON.stringify(req.body)],
+    //     function (error) {
+    //         console.log("New record added with ID " + this.lastID);
+    //     }
+    // );
 })
 
 server.get("/reset-db", (req, res) => {
@@ -121,36 +135,21 @@ server.get("/end-mission", (req, res) => {
     }
     current_mission = null;
 
-    // TODO Save current mission to DB
+    // TODO Save current detections to DB
 
     console.log("Ended mission")
     res.send("Ended mission");
 })
 
-function iou(box1, box2) {
-    const x1 = box1.x;
-    const y1 = box1.y;
-    const w1 = box1.width;
-    const h1 = box1.height;
+function distBetweenCenters(box1, box2) {
+    let c1 = { x: box1.x + box1.width / 2, y: box1.y + box1.height / 2 };
+    let c2 = { x: box2.x + box2.width / 2, y: box2.y + box2.height / 2 };
 
-    const x2 = box2.x;
-    const y2 = box2.y;
-    const w2 = box2.width;
-    const h2 = box2.height;
-
-    const intersectionX = Math.max(0, Math.min(x1 + w1, x2 + w2) - Math.max(x1, x2));
-    const intersectionY = Math.max(0, Math.min(y1 + h1, y2 + h2) - Math.max(y1, y2));
-    const intersectionArea = intersectionX * intersectionY;
-
-    // Calculate the union area
-    const unionArea = w1 * h1 + w2 * h2 - intersectionArea;
-
-    // Calculate IOU
-    const iou = unionArea === 0 ? 0 : intersectionArea / unionArea;
-
-    return iou;
+    return Math.sqrt(Math.pow(c1.x - c2.x, 2) + Math.pow(c1.y - c2.y, 2));
 }
 
+const MAX_DIST = 30;
+const MAX_INACTIVE_FRAMES = 10;
 let current_mission = null;
 let users = [];
 let drone = null;
