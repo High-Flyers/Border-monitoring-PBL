@@ -11,7 +11,8 @@ const sqlite3 = require('sqlite3').verbose();
 const db = new sqlite3.Database('./pbl-2023.db');
 db.run(`CREATE TABLE IF NOT EXISTS missions (
         id INT PRIMARY KEY, 
-        timestamp BIGINT, path LONGTEXT);`);
+        timestamp BIGINT, 
+        path LONGTEXT);`);
 db.run(`CREATE TABLE IF NOT EXISTS detections (
         id INT NOT NULL PRIMARY KEY, 
         timestamp BIGINT, 
@@ -122,15 +123,21 @@ server.get('/start-mission', (req, res) => {
         return;
     }
 
-    if (current_mission != null) {
+    if (current_mission.id != null) {
         console.log("Mission is already started");
         res.send("Error");
         return;
     }
 
-    db.all("SELECT DISTINCT mission_id FROM detections", (error, rows) => {
-        const missionIds = rows.map(row => row.mission_id);
-        current_mission = Math.max(missionIds);
+    db.all("SELECT MAX(id) AS id FROM missions", (error, rows) => {
+        console.log(rows)
+        id = rows[0].id;
+        if (id == null) {
+            id = 0;
+        }
+
+        current_mission.id = id;
+        current_mission.timestamp = parseInt(Date.now() / 1000);
     });
 
     drone.emit("start_mission");
@@ -146,10 +153,19 @@ server.get("/end-mission", (req, res) => {
         return;
     }
 
+    db.run(`INSERT INTO missions(timestamp, path) VALUES(?, ?)`,
+        [current_mission.timestamp, JSON.stringify(current_mission.path)],
+        function (error) {
+            console.log("New mission added with ID " + this.lastID);
+        }
+    );
+
     if (drone != null) {
         drone.emit("end_mission");
     }
-    current_mission = null;
+    current_mission.id = null;
+    current_mission.timestamp = null;
+    current_mission.path = [];
 
     // TODO Save current detections to DB
 
@@ -166,7 +182,7 @@ function distBetweenCenters(box1, box2) {
 
 const MAX_DIST = 30;
 const MAX_INACTIVE_FRAMES = 10;
-let current_mission = null;
+let current_mission = { id: null, timestamp: null, path: [] };
 let users = [];
 let drone = null;
 let detections = [];
