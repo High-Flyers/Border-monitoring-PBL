@@ -34,10 +34,10 @@
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
-        function createDetection(data) {
+        function createMission(data) {
             const container = document.getElementById('main_container')
 
-            const detection = document.createElement("div");
+            const mission = document.createElement("div");
             detection.classList.add("id_container");
 
             const date = new Date(data.timestamp * 1000).toLocaleString('en-GB', { timeZone: 'UTC' });
@@ -57,8 +57,11 @@
 
         var socket = io();
 
-        socket.on("new_detection", (det) => {
-            createDetection(det);
+        socket.on("get_missions", (det) => {
+            console.log(det)
+            det.forEach(element => {
+                createMission(element);
+            });
         });
 
         socket.emit("new_client");

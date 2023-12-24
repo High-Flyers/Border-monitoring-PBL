@@ -9,7 +9,16 @@ const http_server = http.createServer(server);
 // Database
 const sqlite3 = require('sqlite3').verbose();
 const db = new sqlite3.Database('./pbl-2023.db');
-db.run('CREATE TABLE IF NOT EXISTS detections (id INT, data LONGTEXT);');
+db.run(`CREATE TABLE IF NOT EXISTS missions (
+        id INT PRIMARY KEY, 
+        timestamp BIGINT, path LONGTEXT);`);
+db.run(`CREATE TABLE IF NOT EXISTS detections (
+        id INT NOT NULL PRIMARY KEY, 
+        timestamp BIGINT, 
+        first_frame LONGTEXT, 
+        path LONGTEXT, 
+        mission_id INT,
+        FOREIGN KEY (mission_id) REFERENCES missions(id));`);
 
 // Socket
 const { Server } = require("socket.io");
@@ -79,7 +88,13 @@ server.post('/detection', (req, res) => {
         }
 
         if (detections[i].inactive_frames >= MAX_INACTIVE_FRAMES) {
-            // Save to DB, send to user
+            db.run(`INSERT INTO detections(timestamp, first_frame, path, mission_id) VALUES(?, ?, ?, ?)`,
+                [detections[i].timestamp, detections[i].first_frame, JSON.stringify(detections[i].path), current_mission],
+                function (error) {
+                    console.log("New record added with ID " + this.lastID);
+                }
+            );
+
             console.log("Saving detection", detections[i]);
             detections.splice(i, 1);
         }
@@ -113,8 +128,9 @@ server.get('/start-mission', (req, res) => {
         return;
     }
 
-    db.all("SELECT COUNT(*) as row_count FROM detections", (error, rows) => {
-        current_mission = rows[0].row_count;
+    db.all("SELECT DISTINCT mission_id FROM detections", (error, rows) => {
+        const missionIds = rows.map(row => row.mission_id);
+        current_mission = Math.max(missionIds);
     });
 
     drone.emit("start_mission");
@@ -161,10 +177,9 @@ io.on('connection', (socket) => {
         console.log('a user connected');
 
         // Add all detection in DB
-        db.all("SELECT data FROM detections", (error, rows) => {
-            rows.forEach((row) => {
-                socket.emit("new_detection", JSON.parse(row.data));
-            })
+        db.all("SELECT DISTINCT mission_id FROM detections", (error, rows) => {
+            const missionIds = rows.map(row => row.mission_id);
+            socket.emit("get_missions", missionIds);
         });
     })
 
