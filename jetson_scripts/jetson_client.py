@@ -80,7 +80,6 @@ while cap.isOpened():
     # Send detection to server
     data = {"timestamp": int(time.time()), "latitude": 90, "longitude": 12, "image": base64_image, "predictions": res.text}
     res = requests.post(SERVER_URL, json=data)
-    print(res.text)
 
     key = cv2.waitKey(1)
     if key == 27:

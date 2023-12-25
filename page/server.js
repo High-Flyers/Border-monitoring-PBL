@@ -1,7 +1,7 @@
 // Express and http server
 const { deepStrictEqual } = require('assert');
 const express = require('express');
-const { copyFileSync } = require('fs');
+const { copyFileSync, chownSync } = require('fs');
 const http = require('http');
 const server = express();
 const http_server = http.createServer(server);
@@ -60,6 +60,8 @@ server.post('/detection', (req, res) => {
         return;
     }
 
+    current_mission.path.push({ "latitude": req.body.latitude, "longitude": req.body.longitude });
+
     let usedDetections = [];
     let yolo_detections = JSON.parse(req.body.predictions).predictions;
 
@@ -95,6 +97,7 @@ server.post('/detection', (req, res) => {
             db.run(`INSERT INTO detections(timestamp, first_frame, path, mission_id) VALUES(?, ?, ?, ?)`,
                 [detections[i].timestamp, detections[i].first_frame, JSON.stringify(detections[i].path), current_mission.id],
                 function (error) {
+                    console.log(error)
                     console.log("New record added with ID " + this.lastID);
                 }
             );
@@ -161,6 +164,7 @@ server.get("/end-mission", (req, res) => {
         db.run(`INSERT INTO detections(timestamp, first_frame, path, mission_id) VALUES(?, ?, ?, ?)`,
             [det.timestamp, det.first_frame, JSON.stringify(det.path), current_mission.id],
             function (error) {
+                console.log(error)
                 console.log("New record added with ID " + this.lastID);
             }
         );
