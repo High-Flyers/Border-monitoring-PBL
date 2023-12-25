@@ -10,11 +10,11 @@ const http_server = http.createServer(server);
 const sqlite3 = require('sqlite3').verbose();
 const db = new sqlite3.Database('./pbl-2023.db');
 db.run(`CREATE TABLE IF NOT EXISTS missions (
-        id INT PRIMARY KEY, 
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
         timestamp BIGINT, 
         path LONGTEXT);`);
 db.run(`CREATE TABLE IF NOT EXISTS detections (
-        id INT NOT NULL PRIMARY KEY, 
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
         timestamp BIGINT, 
         first_frame LONGTEXT, 
         path LONGTEXT, 
@@ -55,7 +55,10 @@ server.post('/detection', (req, res) => {
         return;
     }
 
-    res.send("OK");
+    if (current_mission.id == null) {
+        res.send("Mission isnt started");
+        return;
+    }
 
     let usedDetections = [];
     let yolo_detections = JSON.parse(req.body.predictions).predictions;
@@ -90,7 +93,7 @@ server.post('/detection', (req, res) => {
 
         if (detections[i].inactive_frames >= MAX_INACTIVE_FRAMES) {
             db.run(`INSERT INTO detections(timestamp, first_frame, path, mission_id) VALUES(?, ?, ?, ?)`,
-                [detections[i].timestamp, detections[i].first_frame, JSON.stringify(detections[i].path), current_mission],
+                [detections[i].timestamp, detections[i].first_frame, JSON.stringify(detections[i].path), current_mission.id],
                 function (error) {
                     console.log("New record added with ID " + this.lastID);
                 }
@@ -101,13 +104,7 @@ server.post('/detection', (req, res) => {
         }
     }
 
-    // Save to DB
-    // db.run(`INSERT INTO detections(data) VALUES(?)`,
-    //     [JSON.stringify(req.body)],
-    //     function (error) {
-    //         console.log("New record added with ID " + this.lastID);
-    //     }
-    // );
+    res.send("OK");
 })
 
 server.get("/reset-db", (req, res) => {
@@ -129,13 +126,8 @@ server.get('/start-mission', (req, res) => {
         return;
     }
 
-    db.all("SELECT MAX(id) AS id FROM missions", (error, rows) => {
-        console.log(rows)
-        id = rows[0].id;
-        if (id == null) {
-            id = 0;
-        }
-
+    db.all("SELECT id FROM missions", (error, rows) => {
+        let id = (rows.length > 0) ? rows[0].id : 0;
         current_mission.id = id;
         current_mission.timestamp = parseInt(Date.now() / 1000);
     });
@@ -156,6 +148,7 @@ server.get("/end-mission", (req, res) => {
     db.run(`INSERT INTO missions(timestamp, path) VALUES(?, ?)`,
         [current_mission.timestamp, JSON.stringify(current_mission.path)],
         function (error) {
+            console.log(error)
             console.log("New mission added with ID " + this.lastID);
         }
     );
@@ -163,11 +156,19 @@ server.get("/end-mission", (req, res) => {
     if (drone != null) {
         drone.emit("end_mission");
     }
+
+    detections.forEach(det => {
+        db.run(`INSERT INTO detections(timestamp, first_frame, path, mission_id) VALUES(?, ?, ?, ?)`,
+            [det.timestamp, det.first_frame, JSON.stringify(det.path), current_mission.id],
+            function (error) {
+                console.log("New record added with ID " + this.lastID);
+            }
+        );
+    })
+
     current_mission.id = null;
     current_mission.timestamp = null;
     current_mission.path = [];
-
-    // TODO Save current detections to DB
 
     console.log("Ended mission")
     res.send("Ended mission");
@@ -193,8 +194,9 @@ io.on('connection', (socket) => {
         console.log('a user connected');
 
         // Add all detection in DB
-        db.all("SELECT DISTINCT mission_id FROM detections", (error, rows) => {
-            const missionIds = rows.map(row => row.mission_id);
+        db.all("SELECT id FROM missions", (error, rows) => {
+            console.log(rows)
+            const missionIds = rows.map(row => row.id);
             socket.emit("get_missions", missionIds);
         });
     })
