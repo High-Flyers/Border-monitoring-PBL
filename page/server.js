@@ -1,10 +1,33 @@
 // Express and http server
-const { deepStrictEqual } = require('assert');
 const express = require('express');
-const { copyFileSync, chownSync } = require('fs');
 const http = require('http');
 const server = express();
 const http_server = http.createServer(server);
+
+// Image processing
+const fs = require("fs");
+const cv = require("opencv4nodejs");
+const Buffer = require('buffer').Buffer;
+const ffmpeg = require('fluent-ffmpeg');
+let writer = null;
+
+function setupVideo(id) {
+    writer = new cv.VideoWriter(`mission-${id}.avi`, cv.VideoWriter.fourcc("MJPG"), 9, new cv.Size(480, 320), true);
+}
+
+function convert2MP4(id) {
+    ffmpeg()
+        .input(`mission-${id}.avi`)
+        .output(`mission-${id}.mp4`)
+        .on('end', function () {
+            console.log('Conversion finished');
+            fs.unlinkSync(`mission-${id}.avi`);
+        })
+        .on('error', function (err) {
+            console.error('Error:', err);
+        })
+        .run();
+}
 
 // Database
 const sqlite3 = require('sqlite3').verbose();
@@ -50,7 +73,7 @@ server.post('/detection', (req, res) => {
         req.body.timestamp === undefined ||
         req.body.latitude === undefined ||
         req.body.longitude === undefined ||
-        req.body.image == undefined) {
+        req.body.image === undefined) {
         res.send("Error in data");
         return;
     }
@@ -112,6 +135,7 @@ server.post('/detection', (req, res) => {
 
 server.get("/reset-db", (req, res) => {
     db.run(`DELETE FROM detections`);
+    db.run(`DELETE FROM missions`);
 
     res.send("OK");
 });
@@ -129,10 +153,11 @@ server.get('/start-mission', (req, res) => {
         return;
     }
 
-    db.all("SELECT id FROM missions", (error, rows) => {
-        let id = (rows.length > 0) ? rows[0].id : 0;
+    db.all("SELECT MAX(id) as id FROM missions", (error, rows) => {
+        let id = (rows[0].id) ? rows[0].id : 0;
         current_mission.id = id;
         current_mission.timestamp = parseInt(Date.now() / 1000);
+        setupVideo(id);
     });
 
     drone.emit("start_mission");
@@ -170,9 +195,13 @@ server.get("/end-mission", (req, res) => {
         );
     })
 
-    current_mission.id = null;
-    current_mission.timestamp = null;
-    current_mission.path = [];
+    if (writer) {
+        convert2MP4(current_mission.id);
+        current_mission.id = null;
+        current_mission.timestamp = null;
+        current_mission.path = [];
+        writer.release();
+    }
 
     console.log("Ended mission")
     res.send("Ended mission");
@@ -185,6 +214,7 @@ function distBetweenCenters(box1, box2) {
     return Math.sqrt(Math.pow(c1.x - c2.x, 2) + Math.pow(c1.y - c2.y, 2));
 }
 
+const PORT = 3000;
 const MAX_DIST = 30;
 const MAX_INACTIVE_FRAMES = 10;
 let current_mission = { id: null, timestamp: null, path: [] };
@@ -211,6 +241,12 @@ io.on('connection', (socket) => {
     })
 
     socket.on("stream", (image) => {
+        if (writer) {
+            const buffer = Buffer.from(image, 'base64');
+            const img = cv.imdecode(buffer);
+            writer.write(img)
+        }
+
         users.forEach(u => {
             u.emit("stream", image);
         });
@@ -225,6 +261,6 @@ io.on('connection', (socket) => {
     });
 });
 
-http_server.listen(3000, () => {
-    console.log('listening on *:3000');
+http_server.listen(PORT, () => {
+    console.log('listening on ' + PORT);
 });
