@@ -10,46 +10,19 @@
 <body>
     <%- include('./partials/header.ejs'); %>
 
-        <div class="raport_background">
-            <div id="main_container">
-                <h3><span class="first_two_words">Real-Time</span> Drone Data:</h3>
-            </div>
+    <div class="raport_background">
+        <div id="main_container">
+            <h3><span class="first_two_words">Real-Time</span> Drone Data:</h3>
+
+            <% missions.forEach(function(mission) { %>
+                <div class="mission">
+                    id: <%= mission.id %>
+                    date: <%= new Date(mission.timestamp*1000).toString() %>
+                    <a href="missions/<%= mission.id %>">See more</a>
+                </div>
+            <% }); %>
         </div>
-
-        <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-        <script>
-            function createMission(data) {
-                const container = document.getElementById('main_container')
-
-                const mission = document.createElement("div");
-                detection.classList.add("id_container");
-
-                const date = new Date(data.timestamp * 1000).toLocaleString('en-GB', { timeZone: 'UTC' });
-
-                const info_container = document.createElement("div");
-                info_container.classList.add("info_container");
-                info_container.innerHTML = `<h3> Time: ${date}, <br> Latitude: ${data.latitude}, <br> Longitude: ${data.longitude}</h4>`;
-                detection.appendChild(info_container);
-
-                const img = document.createElement('img');
-                img.classList.add('image_container');
-                img.src = `data:image/png;base64, ${data.image}`;
-                detection.appendChild(img);
-
-                container.appendChild(detection);
-            }
-
-            var socket = io();
-
-            socket.on("get_missions", (det) => {
-                console.log(det)
-                det.forEach(element => {
-                    createMission(element);
-                });
-            });
-
-            socket.emit("new_client");
-        </script>
+    </div>
 </body>
 
 </html>

@@ -14,23 +14,23 @@
 <body>
     <%- include('./partials/header.ejs'); %>
 
-        <div class="background">
-            <button id="start-mission">Start mission</button>
-            <button id="end-mission">End mission</button>
-        </div>
-        <script>
-            document.getElementById('start-mission').addEventListener("click", e => {
-                var xmlHttp = new XMLHttpRequest();
-                xmlHttp.open("GET", "./start-mission", false); // false for synchronous request
-                xmlHttp.send(null);
-            })
+    <div class="background">
+        <button id="start-mission">Start mission</button>
+        <button id="end-mission">End mission</button>
+    </div>
+    <script>
+        document.getElementById('start-mission').addEventListener("click", e => {
+            var xmlHttp = new XMLHttpRequest();
+            xmlHttp.open("GET", "./start-mission", false); // false for synchronous request
+            xmlHttp.send(null);
+        })
 
-            document.getElementById('end-mission').addEventListener("click", e => {
-                var xmlHttp = new XMLHttpRequest();
-                xmlHttp.open("GET", "./end-mission", false); // false for synchronous request
-                xmlHttp.send(null);
-            })
-        </script>
+        document.getElementById('end-mission').addEventListener("click", e => {
+            var xmlHttp = new XMLHttpRequest();
+            xmlHttp.open("GET", "./end-mission", false); // false for synchronous request
+            xmlHttp.send(null);
+        })
+    </script>
 
 </body>
 

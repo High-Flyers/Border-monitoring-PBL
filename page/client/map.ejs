@@ -14,46 +14,46 @@
 <body>
     <%- include('./partials/header.ejs'); %>
 
-        <div class="background">
-            <div id="map"></div>
-        </div>
-        <script>
+    <div class="background">
+        <div id="map"></div>
+    </div>
+    <script>
 
-            var map = L.map('map').setView([52.05, 23.657], 14);
-            var icon1 = L.icon({
-                iconUrl: '../public/img1.png',
-                iconSize: [120, 95],
-                iconAnchor: [22, 94],
-                popupAnchor: [-3, -76]
-            })
-            var icon2 = L.icon({
-                iconUrl: '../public/img2.png',
-                iconSize: [120, 95],
-                iconAnchor: [22, 94],
-                popupAnchor: [-3, -76]
-            })
-
-
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-            }).addTo(map);
-
-            map.on('click', function (e) {
-                var coordinates = e.latlng;
-                L.popup()
-                    .setLatLng(coordinates)
-                    .setContent('Współrzędne: ' + coordinates.lat.toFixed(4) + ', ' + coordinates.lng.toFixed(4))
-                    .openOn(map);
-            });
-            L.marker([52.05, 23.720], { icon: icon2 }).addTo(map)
-                .bindPopup('Wykrycie 1')
-                .openPopup();
-            L.marker([52.04, 23.789], { icon: icon1 }).addTo(map).
-                bindPopup('Wykrycie 2')
-                .openPopup();
+        var map = L.map('map').setView([52.05, 23.657], 14);
+        var icon1 = L.icon({
+            iconUrl: '../public/img1.png',
+            iconSize: [120, 95],
+            iconAnchor: [22, 94],
+            popupAnchor: [-3, -76]
+        })
+        var icon2 = L.icon({
+            iconUrl: '../public/img2.png',
+            iconSize: [120, 95],
+            iconAnchor: [22, 94],
+            popupAnchor: [-3, -76]
+        })
 
 
-        </script>
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+        }).addTo(map);
+
+        map.on('click', function (e) {
+            var coordinates = e.latlng;
+            L.popup()
+                .setLatLng(coordinates)
+                .setContent('Współrzędne: ' + coordinates.lat.toFixed(4) + ', ' + coordinates.lng.toFixed(4))
+                .openOn(map);
+        });
+        L.marker([52.05, 23.720], { icon: icon2 }).addTo(map)
+            .bindPopup('Wykrycie 1')
+            .openPopup();
+        L.marker([52.04, 23.789], { icon: icon1 }).addTo(map).
+            bindPopup('Wykrycie 2')
+            .openPopup();
+
+
+    </script>
 
 </body>
 

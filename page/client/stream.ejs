@@ -10,20 +10,20 @@
 <body>
     <%- include('./partials/header.ejs'); %>
 
-        <div class="raport_background">
-            <img id="image" src="" alt="Stream" width="480" height="320">
-        </div>
+    <div class="raport_background">
+        <img id="image" src="" alt="Stream" width="480" height="320">
+    </div>
 
-        <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-        <script>
-            var socket = io();
-            const img = document.getElementById("image");
-            socket.on("stream", (det) => {
-                img.src = `data:image/png;base64, ${det}`;
-            });
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        var socket = io();
+        const img = document.getElementById("image");
+        socket.on("stream", (det) => {
+            img.src = `data:image/png;base64, ${det}`;
+        });
 
-            socket.emit("new_client")
-        </script>
+        socket.emit("new_client")
+    </script>
 </body>
 
 </html>

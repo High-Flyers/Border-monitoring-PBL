@@ -107,7 +107,17 @@ server.get('/', (req, res) => {
 });
 
 server.get('/raport', (req, res) => {
-    res.render("raport.ejs");
+    db.all("SELECT id, timestamp, path FROM missions", (error, rows) => {
+        res.render("raport.ejs", { missions: rows });
+    });
+})
+
+server.get("/missions/:id", (req, res) => {
+    db.all("SELECT * FROM detections WHERE mission_id = ?", [req.params.id], (error, rows) => {
+        console.log(rows)
+        console.log(error)
+        res.render("mission.ejs", { detections: rows });
+    });
 })
 
 server.get('/stream', (req, res) => {
@@ -211,13 +221,6 @@ io.on('connection', (socket) => {
     socket.on("new_client", () => {
         users.push(socket);
         console.log('a user connected');
-
-        // Add all detection in DB
-        db.all("SELECT id FROM missions", (error, rows) => {
-            console.log(rows)
-            const missionIds = rows.map(row => row.id);
-            socket.emit("get_missions", missionIds);
-        });
     })
 
     socket.on("new_drone", () => {

@@ -1,0 +1,21 @@
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PBL - MISJA</title>
+    <link rel="stylesheet" href="../style.css">
+</head>
+
+<body>
+    <%- include('./partials/header.ejs') %>
+
+    <% detections.forEach(function(detection) { %>
+        <div class="detection">
+            id: <%= detection.id %>
+            date: <%= new Date(detection.timestamp*1000).toString() %>
+        </div>
+    <% }); %>
+</body>
+
+</html>
