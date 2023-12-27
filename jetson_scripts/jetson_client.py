@@ -78,7 +78,7 @@ while cap.isOpened():
     res = requests.post(MODEL_URL, data=base64_image, headers=headers)
 
     # Send detection to server
-    data = {"timestamp": int(time.time()), "latitude": 90, "longitude": 12, "image": base64_image, "predictions": res.text}
+    data = {"timestamp": int(time.time()), "latitude": 90, "longitude": 12, "predictions": res.text}
     res = requests.post(SERVER_URL, json=data)
 
     key = cv2.waitKey(1)

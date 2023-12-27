@@ -39,10 +39,58 @@ db.run(`CREATE TABLE IF NOT EXISTS missions (
 db.run(`CREATE TABLE IF NOT EXISTS detections (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         timestamp BIGINT, 
-        first_frame LONGTEXT, 
+        bboxes LONGTEXT, 
         path LONGTEXT, 
         mission_id INT,
         FOREIGN KEY (mission_id) REFERENCES missions(id));`);
+
+function processDetections(req) {
+    let usedDetections = [];
+    let yolo_detections = JSON.parse(req.body.predictions).predictions;
+
+    for (let i = 0; i < yolo_detections.length; i++) {
+        const detection = yolo_detections[i];
+        let isUsed = false;
+        for (let j = 0; j < detections.length; j++) {
+            if (distBetweenCenters(detection, detections[j].last_bbox) < MAX_DIST) {
+                detections[j].path.push({ "latitude": req.body.latitude, "longitude": req.body.longitude });
+                detections[j].bboxes.push(yolo_detections[i]);
+                usedDetections.push(j);
+                isUsed = true;
+                break;
+            }
+        }
+
+        if (!isUsed) {
+            detections.push({
+                timestamp: parseInt(Date.now() / 1000),
+                inactive_frames: 0,
+                bboxes: [],
+                path: [{ "latitude": req.body.latitude, "longitude": req.body.longitude }],
+                last_bbox: detection
+            });
+        }
+    }
+
+    for (let i = 0; i < detections.length; i++) {
+        if (!usedDetections.includes(i)) {
+            detections[i].inactive_frames++;
+        }
+
+        if (detections[i].inactive_frames >= MAX_INACTIVE_FRAMES) {
+            db.run(`INSERT INTO detections(timestamp, bboxes, path, mission_id) VALUES(?, ?, ?, ?)`,
+                [detections[i].timestamp, JSON.stringify(detections[i].bboxes), JSON.stringify(detections[i].path), current_mission.id],
+                function (error) {
+                    console.log(error)
+                    console.log("New record added with ID " + this.lastID);
+                }
+            );
+
+            console.log("Saving detection", detections[i]);
+            detections.splice(i, 1);
+        }
+    }
+}
 
 // Socket
 const { Server } = require("socket.io");
@@ -72,8 +120,7 @@ server.post('/detection', (req, res) => {
     if (req.body.predictions === undefined ||
         req.body.timestamp === undefined ||
         req.body.latitude === undefined ||
-        req.body.longitude === undefined ||
-        req.body.image === undefined) {
+        req.body.longitude === undefined) {
         res.send("Error in data");
         return;
     }
@@ -85,50 +132,7 @@ server.post('/detection', (req, res) => {
 
     current_mission.path.push({ "latitude": req.body.latitude, "longitude": req.body.longitude });
 
-    let usedDetections = [];
-    let yolo_detections = JSON.parse(req.body.predictions).predictions;
-
-    for (let i = 0; i < yolo_detections.length; i++) {
-        const detection = yolo_detections[i];
-        let isUsed = false;
-        for (let j = 0; j < detections.length; j++) {
-            if (distBetweenCenters(detection, detections[j].last_bbox) < MAX_DIST) {
-                detections[j].path.push({ "latitude": req.body.latitude, "longitude": req.body.longitude });
-                usedDetections.push(j);
-                isUsed = true;
-                break;
-            }
-        }
-
-        if (!isUsed) {
-            detections.push({
-                timestamp: parseInt(Date.now() / 1000),
-                inactive_frames: 0,
-                first_frame: req.body.image,
-                path: [{ "latitude": req.body.latitude, "longitude": req.body.longitude }],
-                last_bbox: detection
-            });
-        }
-    }
-
-    for (let i = 0; i < detections.length; i++) {
-        if (!usedDetections.includes(i)) {
-            detections[i].inactive_frames++;
-        }
-
-        if (detections[i].inactive_frames >= MAX_INACTIVE_FRAMES) {
-            db.run(`INSERT INTO detections(timestamp, first_frame, path, mission_id) VALUES(?, ?, ?, ?)`,
-                [detections[i].timestamp, detections[i].first_frame, JSON.stringify(detections[i].path), current_mission.id],
-                function (error) {
-                    console.log(error)
-                    console.log("New record added with ID " + this.lastID);
-                }
-            );
-
-            console.log("Saving detection", detections[i]);
-            detections.splice(i, 1);
-        }
-    }
+    processDetections(req);
 
     res.send("OK");
 })
@@ -186,8 +190,8 @@ server.get("/end-mission", (req, res) => {
     }
 
     detections.forEach(det => {
-        db.run(`INSERT INTO detections(timestamp, first_frame, path, mission_id) VALUES(?, ?, ?, ?)`,
-            [det.timestamp, det.first_frame, JSON.stringify(det.path), current_mission.id],
+        db.run(`INSERT INTO detections(timestamp, bboxes, path, mission_id) VALUES(?, ?, ?, ?)`,
+            [det.timestamp, JSON.stringify(det.bboxes), JSON.stringify(det.path), current_mission.id],
             function (error) {
                 console.log(error)
                 console.log("New record added with ID " + this.lastID);
