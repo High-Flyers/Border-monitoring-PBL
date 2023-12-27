@@ -116,8 +116,42 @@ server.get("/missions/:id", (req, res) => {
     db.all("SELECT * FROM detections WHERE mission_id = ?", [req.params.id], (error, rows) => {
         console.log(rows)
         console.log(error)
-        res.render("mission.ejs", { detections: rows });
+        res.render("mission.ejs", { detections: rows, mission_id: req.params.id });
     });
+})
+
+server.get("/mission-stream/:id", (req, res) => {
+    const path = `mission-${req.params.id}.mp4`
+    const stat = fs.statSync(path)
+    const fileSize = stat.size
+    const range = req.headers.range
+
+    if (range) {
+        const parts = range.replace(/bytes=/, "").split("-")
+        const start = parseInt(parts[0], 10)
+        const end = parts[1]
+            ? parseInt(parts[1], 10)
+            : fileSize - 1
+
+        const chunksize = (end - start) + 1
+        const file = fs.createReadStream(path, { start, end })
+        const head = {
+            'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': chunksize,
+            'Content-Type': 'video/mp4',
+        }
+
+        res.writeHead(206, head)
+        file.pipe(res)
+    } else {
+        const head = {
+            'Content-Length': fileSize,
+            'Content-Type': 'video/mp4',
+        }
+        res.writeHead(200, head)
+        fs.createReadStream(path).pipe(res)
+    }
 })
 
 server.get('/stream', (req, res) => {
@@ -150,9 +184,9 @@ server.get('/start-mission', (req, res) => {
 
     db.all("SELECT MAX(id) as id FROM missions", (error, rows) => {
         let id = (rows[0].id) ? rows[0].id : 0;
-        current_mission.id = id;
+        current_mission.id = id + 1;
         current_mission.timestamp = parseInt(Date.now() / 1000);
-        setupVideo(id);
+        setupVideo(current_mission.id);
     });
 
     drone.emit("start_mission");
