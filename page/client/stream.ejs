@@ -1,0 +1,29 @@
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PBL - Live Feed</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <%- include('./partials/header.ejs'); %>
+
+        <div class="raport_background">
+            <img id="image" src="" alt="Stream" width="480" height="320">
+        </div>
+
+        <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+        <script>
+            var socket = io();
+            const img = document.getElementById("image");
+            socket.on("stream", (det) => {
+                img.src = `data:image/png;base64, ${det}`;
+            });
+
+            socket.emit("new_client")
+        </script>
+</body>
+
+</html>

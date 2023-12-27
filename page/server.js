@@ -3,6 +3,8 @@ const express = require('express');
 const http = require('http');
 const server = express();
 const http_server = http.createServer(server);
+server.set('view engine', 'ejs');
+server.set('views', './client');
 
 // Image processing
 const fs = require("fs");
@@ -101,19 +103,19 @@ server.use(express.json({ limit: '20mb' }))
 server.use(express.urlencoded({ extended: true }));
 
 server.get('/', (req, res) => {
-    res.sendFile("./client/index.html", { root: __dirname });
+    res.render("index.ejs");
 });
 
 server.get('/raport', (req, res) => {
-    res.sendFile("./client/raport.html", { root: __dirname });
+    res.render("raport.ejs");
 })
 
 server.get('/stream', (req, res) => {
-    res.sendFile("./client/stream.html", { root: __dirname });
+    res.render("stream.ejs");
 })
 
 server.get("/map", (req, res) => {
-    res.sendFile("./client/map.html", { root: __dirname });
+    res.render("map.ejs");
 })
 
 server.get("/reset-db", (req, res) => {
