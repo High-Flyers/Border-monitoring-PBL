@@ -71,15 +71,13 @@ while cap.isOpened():
     _, encoded = cv2.imencode(".png", frame)
     base64_image = base64.b64encode(encoded.tobytes()).decode('utf-8')
 
-    sio.emit("stream", base64_image)
-
     # Get detections from roboflow model
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
     res = requests.post(MODEL_URL, data=base64_image, headers=headers)
 
     # Send detection to server
-    data = {"timestamp": int(time.time()), "latitude": 90, "longitude": 12, "predictions": res.text}
-    res = requests.post(SERVER_URL, json=data)
+    data = {"timestamp": int(time.time()), "latitude": 90, "longitude": 12, "predictions": res.text, "image": base64_image}
+    sio.emit("detection", data)
 
     key = cv2.waitKey(1)
     if key == 27:

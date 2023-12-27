@@ -44,16 +44,16 @@ db.run(`CREATE TABLE IF NOT EXISTS detections (
         mission_id INT,
         FOREIGN KEY (mission_id) REFERENCES missions(id));`);
 
-function processDetections(req) {
+function processDetections(data) {
     let usedDetections = [];
-    let yolo_detections = JSON.parse(req.body.predictions).predictions;
+    let yolo_detections = JSON.parse(data.predictions).predictions;
 
     for (let i = 0; i < yolo_detections.length; i++) {
         const detection = yolo_detections[i];
         let isUsed = false;
         for (let j = 0; j < detections.length; j++) {
             if (distBetweenCenters(detection, detections[j].last_bbox) < MAX_DIST) {
-                detections[j].path.push({ "latitude": req.body.latitude, "longitude": req.body.longitude });
+                detections[j].path.push({ "latitude": data.latitude, "longitude": data.longitude });
                 detections[j].bboxes.push(yolo_detections[i]);
                 usedDetections.push(j);
                 isUsed = true;
@@ -66,7 +66,7 @@ function processDetections(req) {
                 timestamp: parseInt(Date.now() / 1000),
                 inactive_frames: 0,
                 bboxes: [],
-                path: [{ "latitude": req.body.latitude, "longitude": req.body.longitude }],
+                path: [{ "latitude": data.latitude, "longitude": data.longitude }],
                 last_bbox: detection
             });
         }
@@ -114,27 +114,6 @@ server.get('/stream', (req, res) => {
 
 server.get("/map", (req, res) => {
     res.sendFile("./client/map.html", { root: __dirname });
-})
-
-server.post('/detection', (req, res) => {
-    if (req.body.predictions === undefined ||
-        req.body.timestamp === undefined ||
-        req.body.latitude === undefined ||
-        req.body.longitude === undefined) {
-        res.send("Error in data");
-        return;
-    }
-
-    if (current_mission.id == null) {
-        res.send("Mission isnt started");
-        return;
-    }
-
-    current_mission.path.push({ "latitude": req.body.latitude, "longitude": req.body.longitude });
-
-    processDetections(req);
-
-    res.send("OK");
 })
 
 server.get("/reset-db", (req, res) => {
@@ -244,16 +223,33 @@ io.on('connection', (socket) => {
         console.log("Added new drone")
     })
 
-    socket.on("stream", (image) => {
+    socket.on("detection", (data) => {
+        if (data.predictions === undefined ||
+            data.timestamp === undefined ||
+            data.latitude === undefined ||
+            data.longitude === undefined) {
+            console.log("Error in data");
+            return;
+        }
+
         if (writer) {
-            const buffer = Buffer.from(image, 'base64');
+            const buffer = Buffer.from(data.image, 'base64');
             const img = cv.imdecode(buffer);
             writer.write(img)
         }
 
         users.forEach(u => {
-            u.emit("stream", image);
+            u.emit("stream", data.image);
         });
+
+        if (current_mission.id == null) {
+            console.log("Mission isnt started");
+            return;
+        }
+
+        current_mission.path.push({ "latitude": data.latitude, "longitude": data.longitude });
+
+        processDetections(data);
     })
 
     socket.on('disconnect', () => {
