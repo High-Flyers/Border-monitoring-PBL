@@ -11,6 +11,7 @@ const fs = require("fs");
 const cv = require("opencv4nodejs");
 const Buffer = require('buffer').Buffer;
 const ffmpeg = require('fluent-ffmpeg');
+var spawn = require('child_process').spawn;
 let writer = null;
 
 function setupVideo(name) {
@@ -49,18 +50,25 @@ function sendVideo(path, req, res) {
     }
 }
 
-function drawDetection(input_path, output_path, mission_id, detection_id) {
-    let dumper = setupVideo(output_path);
-    const cap = new cv.VideoCapture(input_path);
+function drawDetection(input_path, output_path, detection_id) {
+    const promise = new Promise((resolve, reject) => {
+        const py = spawn('python3', ['drawDetections.py', input_path, output_path]);
 
-    while (cap.isOpened()) {
-        ret, frame = cap.read();
+        py.stdout.on('end', (data) => {
+            resolve();
+        });
 
-        dumper.write(frame);
-    }
+        db.all("SELECT * FROM detections WHERE id = ?", [detection_id], (error, rows) => {
+            if (rows.length == 0) {
+                console.log("Didnt found detection");
+                reject();
+            }
+            py.stdin.write(JSON.stringify(rows[0]));
+            py.stdin.end();
+        });
+    });
 
-    cap.release();
-    dumper.release();
+    return promise;
 }
 
 function convert2MP4(id) {
@@ -80,6 +88,7 @@ function convert2MP4(id) {
 // Database
 const sqlite3 = require('sqlite3').verbose();
 const db = new sqlite3.Database('./pbl-2023.db');
+
 db.run(`CREATE TABLE IF NOT EXISTS missions (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         timestamp BIGINT, 
@@ -169,11 +178,14 @@ server.get("/mission-stream/:id", (req, res) => {
     sendVideo(path, req, res);
 })
 
-server.get("/mission-stream/:mission_id/:detection_id", (req, res) => {
+server.get("/mission-stream/:mission_id/:detection_id", async (req, res) => {
     const original_mission = `mission-${req.params.mission_id}.mp4`;
     const rerendered_mission = `/tmp/mission.mp4`;
-    drawDetection(original_mission, rerendered_mission, req.params.mission_id, req.params.detection_id);
-    sendVideo(rerendered_mission, req, res);
+    drawDetection(original_mission, rerendered_mission, req.params.detection_id).then(data => {
+        sendVideo(rerendered_mission, req, res);
+    }).catch(data => {
+        console.log("There was an error while drawing bboxes");
+    })
 })
 
 server.get('/stream', (req, res) => {
