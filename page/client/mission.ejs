@@ -14,14 +14,25 @@
         <div class="detection">
             id: <%= detection.id %>
             date: <%= new Date(detection.timestamp*1000).toString() %>
+            <button class="render-detection" onclick="renderVideo(<%= mission_id %>, <%= detection.id %>)">Show</button>
         </div>
     <% }); %>
 
     Mission recording:
-    <video width="640" height="360" controls>
-        <source src="/mission-stream/<%= mission_id %>" type="video/mp4">
+    <video width="640" height="360" controls id="video-stream">
+        <source id="video-source" src="/mission-stream/<%= mission_id %>" type="video/mp4">
         Your browser does not support the video tag.
-      </video>
+    </video>
+
+    <script>
+        const video = document.getElementById("video-stream");
+        const source = document.getElementById("video-source");
+
+        function renderVideo(mission_id, detection_id){
+            source.setAttribute("src", `/mission-stream/${mission_id}/${detection_id}`);
+            video.load();
+        }
+    </script>
 </body>
 
 </html>

@@ -13,8 +13,54 @@ const Buffer = require('buffer').Buffer;
 const ffmpeg = require('fluent-ffmpeg');
 let writer = null;
 
-function setupVideo(id) {
-    writer = new cv.VideoWriter(`mission-${id}.avi`, cv.VideoWriter.fourcc("MJPG"), 9, new cv.Size(480, 320), true);
+function setupVideo(name) {
+    return new cv.VideoWriter(name, cv.VideoWriter.fourcc("MJPG"), CAMERA_FPS, new cv.Size(480, 320), true);
+}
+
+function sendVideo(path, req, res) {
+    const stat = fs.statSync(path)
+    const fileSize = stat.size
+    const range = req.headers.range
+    if (range) {
+        const parts = range.replace(/bytes=/, "").split("-")
+        const start = parseInt(parts[0], 10)
+        const end = parts[1]
+            ? parseInt(parts[1], 10)
+            : fileSize - 1
+
+        const chunksize = (end - start) + 1
+        const file = fs.createReadStream(path, { start, end })
+        const head = {
+            'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': chunksize,
+            'Content-Type': 'video/mp4',
+        }
+
+        res.writeHead(206, head)
+        file.pipe(res)
+    } else {
+        const head = {
+            'Content-Length': fileSize,
+            'Content-Type': 'video/mp4',
+        }
+        res.writeHead(200, head)
+        fs.createReadStream(path).pipe(res)
+    }
+}
+
+function drawDetection(input_path, output_path, mission_id, detection_id) {
+    let dumper = setupVideo(output_path);
+    const cap = new cv.VideoCapture(input_path);
+
+    while (cap.isOpened()) {
+        ret, frame = cap.read();
+
+        dumper.write(frame);
+    }
+
+    cap.release();
+    dumper.release();
 }
 
 function convert2MP4(id) {
@@ -114,44 +160,20 @@ server.get('/raport', (req, res) => {
 
 server.get("/missions/:id", (req, res) => {
     db.all("SELECT * FROM detections WHERE mission_id = ?", [req.params.id], (error, rows) => {
-        console.log(rows)
-        console.log(error)
-        res.render("mission.ejs", { detections: rows, mission_id: req.params.id });
+        res.render("mission.ejs", { detections: rows, mission_id: req.params.id, camera_fps: CAMERA_FPS });
     });
 })
 
 server.get("/mission-stream/:id", (req, res) => {
     const path = `mission-${req.params.id}.mp4`
-    const stat = fs.statSync(path)
-    const fileSize = stat.size
-    const range = req.headers.range
+    sendVideo(path, req, res);
+})
 
-    if (range) {
-        const parts = range.replace(/bytes=/, "").split("-")
-        const start = parseInt(parts[0], 10)
-        const end = parts[1]
-            ? parseInt(parts[1], 10)
-            : fileSize - 1
-
-        const chunksize = (end - start) + 1
-        const file = fs.createReadStream(path, { start, end })
-        const head = {
-            'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-            'Accept-Ranges': 'bytes',
-            'Content-Length': chunksize,
-            'Content-Type': 'video/mp4',
-        }
-
-        res.writeHead(206, head)
-        file.pipe(res)
-    } else {
-        const head = {
-            'Content-Length': fileSize,
-            'Content-Type': 'video/mp4',
-        }
-        res.writeHead(200, head)
-        fs.createReadStream(path).pipe(res)
-    }
+server.get("/mission-stream/:mission_id/:detection_id", (req, res) => {
+    const original_mission = `mission-${req.params.mission_id}.mp4`;
+    const rerendered_mission = `/tmp/mission.mp4`;
+    drawDetection(original_mission, rerendered_mission, req.params.mission_id, req.params.detection_id);
+    sendVideo(rerendered_mission, req, res);
 })
 
 server.get('/stream', (req, res) => {
@@ -186,7 +208,7 @@ server.get('/start-mission', (req, res) => {
         let id = (rows[0].id) ? rows[0].id : 0;
         current_mission.id = id + 1;
         current_mission.timestamp = parseInt(Date.now() / 1000);
-        setupVideo(current_mission.id);
+        writer = setupVideo(`mission-${current_mission.id}.avi`);
     });
 
     drone.emit("start_mission");
@@ -246,6 +268,7 @@ function distBetweenCenters(box1, box2) {
 const PORT = 3000;
 const MAX_DIST = 30;
 const MAX_INACTIVE_FRAMES = 10;
+const CAMERA_FPS = 9;
 let current_mission = { id: null, timestamp: null, path: [] };
 let users = [];
 let drone = null;
