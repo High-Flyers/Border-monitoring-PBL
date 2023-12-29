@@ -7,6 +7,7 @@ import requests
 import socketio
 from dotenv import load_dotenv
 import os
+import json
 
 # Run roboflow server
 # sudo docker run -it --net=host roboflow/roboflow-inference-server-cpu:latest
@@ -74,9 +75,16 @@ while cap.isOpened():
     # Get detections from roboflow model
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
     res = requests.post(MODEL_URL, data=base64_image, headers=headers)
+    
+    # Clear detections
+    detections = json.loads(res.text)['predictions']
+    for det in detections:
+        del det['confidence']
+        del det['class']
+        del det['class_id']
 
     # Send detection to server
-    data = {"timestamp": int(time.time()), "latitude": 90, "longitude": 12, "predictions": res.text, "image": base64_image}
+    data = {"timestamp": int(time.time()), "latitude": 90, "longitude": 12, "predictions": detections, "image": base64_image}
     sio.emit("detection", data)
 
     key = cv2.waitKey(1)

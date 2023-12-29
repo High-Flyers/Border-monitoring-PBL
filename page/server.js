@@ -58,6 +58,15 @@ function drawDetection(input_path, output_path, detection_id) {
             resolve();
         });
 
+        py.stderr.on('data', (data) => {
+            console.error(`Python stderr: ${data}`);
+        });
+
+        py.stdout.on('data', (data) => {
+            console.log(`Python stdout: ${data}`);
+        });
+
+
         db.all("SELECT * FROM detections WHERE id = ?", [detection_id], (error, rows) => {
             if (rows.length == 0) {
                 console.log("Didnt found detection");
@@ -103,15 +112,15 @@ db.run(`CREATE TABLE IF NOT EXISTS detections (
 
 function processDetections(data) {
     let usedDetections = [];
-    let yolo_detections = JSON.parse(data.predictions).predictions;
 
-    for (let i = 0; i < yolo_detections.length; i++) {
-        const detection = yolo_detections[i];
+    for (let i = 0; i < data.predictions.length; i++) {
+        const detection = data.predictions[i];
         let isUsed = false;
         for (let j = 0; j < detections.length; j++) {
             if (distBetweenCenters(detection, detections[j].last_bbox) < MAX_DIST) {
                 detections[j].path.push({ "latitude": data.latitude, "longitude": data.longitude });
-                detections[j].bboxes.push(yolo_detections[i]);
+                data.predictions[i].frame = current_mission.frames;
+                detections[j].bboxes.push(data.predictions[i]);
                 usedDetections.push(j);
                 isUsed = true;
                 break;
@@ -143,7 +152,6 @@ function processDetections(data) {
                 }
             );
 
-            console.log("Saving detection", detections[i]);
             detections.splice(i, 1);
         }
     }
@@ -264,6 +272,7 @@ server.get("/end-mission", (req, res) => {
         current_mission.id = null;
         current_mission.timestamp = null;
         current_mission.path = [];
+        current_mission.frames = 0;
         writer.release();
     }
 
@@ -282,7 +291,9 @@ const PORT = 3000;
 const MAX_DIST = 30;
 const MAX_INACTIVE_FRAMES = 10;
 const CAMERA_FPS = 9;
-let current_mission = { id: null, timestamp: null, path: [] };
+let current_mission = {
+    id: null, timestamp: null, path: [], frames: 0
+};
 let users = [];
 let drone = null;
 let detections = [];
@@ -322,9 +333,10 @@ io.on('connection', (socket) => {
             return;
         }
 
-        current_mission.path.push({ "latitude": data.latitude, "longitude": data.longitude });
-
         processDetections(data);
+
+        current_mission.frames++;
+        current_mission.path.push({ "latitude": data.latitude, "longitude": data.longitude });
     })
 
     socket.on('disconnect', () => {
