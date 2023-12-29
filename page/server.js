@@ -182,6 +182,7 @@ server.get("/mission-stream/:mission_id/:detection_id", async (req, res) => {
     const original_mission = `mission-${req.params.mission_id}.mp4`;
     const rerendered_mission = `/tmp/mission.mp4`;
     drawDetection(original_mission, rerendered_mission, req.params.detection_id).then(data => {
+        console.log("Sending video")
         sendVideo(rerendered_mission, req, res);
     }).catch(data => {
         console.log("There was an error while drawing bboxes");

@@ -8,6 +8,7 @@ RUN apt-get update && apt-get -y install cmake
 RUN export OPENCV4NODEJS_DISABLE_AUTOBUILD=0
 RUN export OPENCV4NODEJS_AUTOBUILD_OPENCV_VERSION=4.1.0
 RUN npm install
+RUN apt-get -y install python3-dev python3-opencv ffmpeg
 
 COPY . .
 
