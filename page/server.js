@@ -66,13 +66,12 @@ function drawDetection(input_path, output_path, detection_id) {
             console.log(`Python stdout: ${data}`);
         });
 
-
         db.all("SELECT * FROM detections WHERE id = ?", [detection_id], (error, rows) => {
             if (rows.length == 0) {
                 console.log("Didnt found detection");
                 reject();
             }
-            py.stdin.write(JSON.stringify(rows[0]));
+            py.stdin.write(JSON.stringify(rows[0].bboxes));
             py.stdin.end();
         });
     });
