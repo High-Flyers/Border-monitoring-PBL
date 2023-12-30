@@ -10,11 +10,11 @@
 <body>
     <%- include('./partials/header.ejs') %>
 
-    <% detections.forEach(function(detection) { %>
+    <% detection_clusters.forEach(function(cluster) { %>
         <div class="detection">
-            id: <%= detection.id %>
-            date: <%= new Date(detection.timestamp*1000).toString() %>
-            <button class="render-detection" onclick="renderVideo(<%= mission_id %>, <%= detection.id %>)">Show</button>
+            id: <%= cluster.id %>
+            date: <%= new Date(cluster.timestamp*1000).toString() %>
+            <button class="render-detection" onclick="renderVideo(<%= mission_id %>, <%= cluster.id %>)">Show</button>
         </div>
     <% }); %>
 

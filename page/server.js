@@ -66,7 +66,7 @@ function drawDetection(input_path, output_path, detection_id) {
             console.log(`Python stdout: ${data}`);
         });
 
-        db.all("SELECT * FROM detections WHERE id = ?", [detection_id], (error, rows) => {
+        db.all("SELECT * FROM detection_clusters WHERE id = ?", [detection_id], (error, rows) => {
             if (rows.length == 0) {
                 console.log("Didnt found detection");
                 reject();
@@ -101,7 +101,7 @@ db.run(`CREATE TABLE IF NOT EXISTS missions (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         timestamp BIGINT, 
         path LONGTEXT);`);
-db.run(`CREATE TABLE IF NOT EXISTS detections (
+db.run(`CREATE TABLE IF NOT EXISTS detection_clusters (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         timestamp BIGINT, 
         bboxes LONGTEXT, 
@@ -110,48 +110,64 @@ db.run(`CREATE TABLE IF NOT EXISTS detections (
         FOREIGN KEY (mission_id) REFERENCES missions(id));`);
 
 function processDetections(data) {
-    let usedDetections = [];
+    /* 
+        This algorithm groups new detections into existing detections or creates a new ones. 
+        Detection in this case means a group of yolo predictions that point to the same object but on different frames.
+
+        This algorithm is based on k-means algorithm for classyfing bounding boxes based on distance.
+        In array 'detections' we have current detections. Each record in this array has property last_frame
+        which can be treated like a centroid of a detection (cluster). Each new yolo prediction is then added to a group
+        with the closest centroid. If this distance is bigger then threshold new detections is added.
+    */
+
+    let used_clusters = [];
+
+    // TODO Before adding prediction to cluster. Sort predictions based on distance for there is no race condition
 
     for (let i = 0; i < data.predictions.length; i++) {
-        const detection = data.predictions[i];
-        let isUsed = false;
-        for (let j = 0; j < detections.length; j++) {
-            if (distBetweenCenters(detection, detections[j].last_bbox) < MAX_DIST) {
-                detections[j].path.push({ "latitude": data.latitude, "longitude": data.longitude });
-                data.predictions[i].frame = current_mission.frames;
-                detections[j].bboxes.push(data.predictions[i]);
-                usedDetections.push(j);
-                isUsed = true;
-                break;
+        let min = { dist: 1e+6, index: null };
+        for (let j = 0; j < detection_clusters.length; j++) {
+            console.log(data.predictions[i], detection_clusters)
+            let dist = distBetweenCenters(data.predictions[i], detection_clusters[j].bboxes.at(-1));
+            if (dist < min.dist) {
+                min = { dist: dist, index: j };
             }
         }
 
-        if (!isUsed) {
-            detections.push({
+        data.predictions[i].frame = current_mission.frames;
+
+        // Add to group
+        if (min.dist < MAX_DIST && !used_clusters.includes(min.index)) {
+            detection_clusters[min.index].bboxes.push(data.predictions[i]);
+            used_clusters.push(min.index)
+        }
+        // Create a new one
+        else {
+            detection_clusters.push({
                 timestamp: parseInt(Date.now() / 1000),
                 inactive_frames: 0,
-                bboxes: [],
+                bboxes: [data.predictions[i]],
                 path: [{ "latitude": data.latitude, "longitude": data.longitude }],
-                last_bbox: detection
             });
         }
     }
 
-    for (let i = 0; i < detections.length; i++) {
-        if (!usedDetections.includes(i)) {
-            detections[i].inactive_frames++;
+    // If any of the clusters are inactive for a long time, close it and save to DB
+    for (let i = 0; i < detection_clusters.length; i++) {
+        if (!used_clusters.includes(i)) {
+            detection_clusters[i].inactive_frames++;
         }
 
-        if (detections[i].inactive_frames >= MAX_INACTIVE_FRAMES) {
+        if (detection_clusters[i].inactive_frames >= MAX_INACTIVE_FRAMES) {
             db.run(`INSERT INTO detections(timestamp, bboxes, path, mission_id) VALUES(?, ?, ?, ?)`,
-                [detections[i].timestamp, JSON.stringify(detections[i].bboxes), JSON.stringify(detections[i].path), current_mission.id],
+                [detection_clusters[i].timestamp, JSON.stringify(detection_clusters[i].bboxes), JSON.stringify(detection_clusters[i].path), current_mission.id],
                 function (error) {
                     console.log(error)
                     console.log("New record added with ID " + this.lastID);
                 }
             );
 
-            detections.splice(i, 1);
+            detection_clusters.splice(i, 1);
         }
     }
 }
@@ -175,8 +191,8 @@ server.get('/raport', (req, res) => {
 })
 
 server.get("/missions/:id", (req, res) => {
-    db.all("SELECT * FROM detections WHERE mission_id = ?", [req.params.id], (error, rows) => {
-        res.render("mission.ejs", { detections: rows, mission_id: req.params.id, camera_fps: CAMERA_FPS });
+    db.all("SELECT * FROM detection_clusters WHERE mission_id = ?", [req.params.id], (error, rows) => {
+        res.render("mission.ejs", { detection_clusters: rows, mission_id: req.params.id, camera_fps: CAMERA_FPS });
     });
 })
 
@@ -185,10 +201,10 @@ server.get("/mission-stream/:id", (req, res) => {
     sendVideo(path, req, res);
 })
 
-server.get("/mission-stream/:mission_id/:detection_id", async (req, res) => {
+server.get("/mission-stream/:mission_id/:cluster_id", async (req, res) => {
     const original_mission = `mission-${req.params.mission_id}.mp4`;
     const rerendered_mission = `/tmp/mission.mp4`;
-    drawDetection(original_mission, rerendered_mission, req.params.detection_id).then(data => {
+    drawDetection(original_mission, rerendered_mission, req.params.cluster_id).then(data => {
         console.log("Sending video")
         sendVideo(rerendered_mission, req, res);
     }).catch(data => {
@@ -205,7 +221,7 @@ server.get("/map", (req, res) => {
 })
 
 server.get("/reset-db", (req, res) => {
-    db.run(`DELETE FROM detections`);
+    db.run(`DELETE FROM detection_clusters`);
     db.run(`DELETE FROM missions`);
 
     res.send("OK");
@@ -256,8 +272,8 @@ server.get("/end-mission", (req, res) => {
         drone.emit("end_mission");
     }
 
-    detections.forEach(det => {
-        db.run(`INSERT INTO detections(timestamp, bboxes, path, mission_id) VALUES(?, ?, ?, ?)`,
+    detection_clusters.forEach(det => {
+        db.run(`INSERT INTO detection_clusters(timestamp, bboxes, path, mission_id) VALUES(?, ?, ?, ?)`,
             [det.timestamp, JSON.stringify(det.bboxes), JSON.stringify(det.path), current_mission.id],
             function (error) {
                 console.log(error)
@@ -295,7 +311,7 @@ let current_mission = {
 };
 let users = [];
 let drone = null;
-let detections = [];
+let detection_clusters = [];
 
 io.on('connection', (socket) => {
     socket.on("new_client", () => {
