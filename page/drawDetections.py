@@ -12,8 +12,6 @@ line = sys.stdin.readlines()[0]
 
 detections = json.loads(json.loads(line))
 
-print(detections)
-
 current_detection = 0
 current_frame = 0
 while cap.isOpened() and current_detection < len(detections):

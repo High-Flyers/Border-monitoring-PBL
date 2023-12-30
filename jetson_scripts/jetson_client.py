@@ -16,7 +16,7 @@ load_dotenv()
 API_KEY = os.getenv("API_KEY")
 
 SERVER_URL = "http://127.0.0.1:3000/detection"
-MODEL_URL = f"http://127.0.0.1:9001/pbl-2023/2?api_key={API_KEY}"
+MODEL_URL = f"http://127.0.0.1:9001/pbl-2023/3?api_key={API_KEY}"
 
 sio = socketio.Client()
 
@@ -45,6 +45,17 @@ def disconnect():
     res = requests.get("http://127.0.0.1:3000/end-mission")
     print(res)
     print('disconnected from server')
+
+    while True:
+        print(f'Reconnect attempt')
+        sio.connect('http://127.0.0.1:3000')
+        
+        # Wait for a moment before the next reconnect attempt
+        time.sleep(2)
+
+        if sio.connected:
+            print('Reconnected successfully!')
+            break
 
 sio.connect('http://127.0.0.1:3000')
 
