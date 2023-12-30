@@ -124,10 +124,11 @@ function processDetections(data) {
 
     // TODO Before adding prediction to cluster. Sort predictions based on distance for there is no race condition
 
+    console.log(data.predictions.length)
+
     for (let i = 0; i < data.predictions.length; i++) {
         let min = { dist: 1e+6, index: null };
         for (let j = 0; j < detection_clusters.length; j++) {
-            console.log(data.predictions[i], detection_clusters)
             let dist = distBetweenCenters(data.predictions[i], detection_clusters[j].bboxes.at(-1));
             if (dist < min.dist) {
                 min = { dist: dist, index: j };
@@ -159,7 +160,7 @@ function processDetections(data) {
         }
 
         if (detection_clusters[i].inactive_frames >= MAX_INACTIVE_FRAMES) {
-            db.run(`INSERT INTO detections(timestamp, bboxes, path, mission_id) VALUES(?, ?, ?, ?)`,
+            db.run(`INSERT INTO detection_clusters(timestamp, bboxes, path, mission_id) VALUES(?, ?, ?, ?)`,
                 [detection_clusters[i].timestamp, JSON.stringify(detection_clusters[i].bboxes), JSON.stringify(detection_clusters[i].path), current_mission.id],
                 function (error) {
                     console.log(error)
@@ -336,6 +337,7 @@ io.on('connection', (socket) => {
         if (writer) {
             const buffer = Buffer.from(data.image, 'base64');
             const img = cv.imdecode(buffer);
+
             writer.write(img)
         }
 
