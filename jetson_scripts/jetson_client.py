@@ -60,7 +60,7 @@ def disconnect():
 sio.connect('http://127.0.0.1:3000')
 
 # cap = cv2.VideoCapture(0)
-cap = cv2.VideoCapture('opencv_algo/video46.mp4')
+cap = cv2.VideoCapture('video47.mp4')
 
 while cap.isOpened():
     if not mission_active:

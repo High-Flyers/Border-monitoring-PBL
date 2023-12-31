@@ -120,38 +120,50 @@ function processDetections(data) {
         with the closest centroid. If this distance is bigger then threshold new detections is added.
     */
 
-    let used_clusters = [];
+    let pairs = [];
 
-    // TODO Before adding prediction to cluster. Sort predictions based on distance for there is no race condition
-
-    console.log(data.predictions.length)
-
+    // For every new detection find closest cluster
     for (let i = 0; i < data.predictions.length; i++) {
-        let min = { dist: 1e+6, index: null };
+        let min = { dist: 1e+6, cluster_idx: null, prediction_idx: i };
         for (let j = 0; j < detection_clusters.length; j++) {
             let dist = distBetweenCenters(data.predictions[i], detection_clusters[j].bboxes.at(-1));
             if (dist < min.dist) {
-                min = { dist: dist, index: j };
+                min = { dist: dist, cluster_idx: j, prediction_idx: i };
             }
         }
 
         data.predictions[i].frame = current_mission.frames;
+        pairs.push(min);
+    }
 
-        // Add to group
-        if (min.dist < MAX_DIST && !used_clusters.includes(min.index)) {
-            detection_clusters[min.index].bboxes.push(data.predictions[i]);
-            used_clusters.push(min.index)
+    // Sort pair by distance and add detections to clusters or create a new one
+    pairs.sort((a, b) => {
+        if (a.dist < b.dist) {
+            return -1;
         }
-        // Create a new one
-        else {
+
+        if (a.dist > b.dist) {
+            return 1;
+        }
+
+        return 0;
+    })
+
+    let used_clusters = [];
+    pairs.forEach(p => {
+        if (p.dist < MAX_DIST && !used_clusters.includes(p.cluster_idx)) {
+            detection_clusters[p.cluster_idx].bboxes.push(data.predictions[p.prediction_idx]);
+            used_clusters.push(p.cluster_idx)
+        } else {
             detection_clusters.push({
                 timestamp: parseInt(Date.now() / 1000),
                 inactive_frames: 0,
-                bboxes: [data.predictions[i]],
+                bboxes: [data.predictions[p.prediction_idx]],
                 path: [{ "latitude": data.latitude, "longitude": data.longitude }],
             });
+            used_clusters.push(detection_clusters.length - 1);
         }
-    }
+    })
 
     // If any of the clusters are inactive for a long time, close it and save to DB
     for (let i = 0; i < detection_clusters.length; i++) {
@@ -160,13 +172,15 @@ function processDetections(data) {
         }
 
         if (detection_clusters[i].inactive_frames >= MAX_INACTIVE_FRAMES) {
-            db.run(`INSERT INTO detection_clusters(timestamp, bboxes, path, mission_id) VALUES(?, ?, ?, ?)`,
-                [detection_clusters[i].timestamp, JSON.stringify(detection_clusters[i].bboxes), JSON.stringify(detection_clusters[i].path), current_mission.id],
-                function (error) {
-                    console.log(error)
-                    console.log("New record added with ID " + this.lastID);
-                }
-            );
+            if (detection_clusters[i].bboxes.length > MIN_DETECTION_TIME) {
+                db.run(`INSERT INTO detection_clusters(timestamp, bboxes, path, mission_id) VALUES(?, ?, ?, ?)`,
+                    [detection_clusters[i].timestamp, JSON.stringify(detection_clusters[i].bboxes), JSON.stringify(detection_clusters[i].path), current_mission.id],
+                    function (error) {
+                        console.log(error)
+                        console.log("New record added with ID " + this.lastID);
+                    }
+                );
+            }
 
             detection_clusters.splice(i, 1);
         }
@@ -175,6 +189,7 @@ function processDetections(data) {
 
 // Socket
 const { Server } = require("socket.io");
+const { default: cluster } = require('cluster');
 const io = new Server(http_server);
 
 server.use(express.static(__dirname + '/client'));
@@ -304,9 +319,10 @@ function distBetweenCenters(box1, box2) {
 }
 
 const PORT = 3000;
-const MAX_DIST = 30;
-const MAX_INACTIVE_FRAMES = 10;
+const MAX_DIST = 20;
+const MAX_INACTIVE_FRAMES = 2;
 const CAMERA_FPS = 9;
+const MIN_DETECTION_TIME = CAMERA_FPS * 3;
 let current_mission = {
     id: null, timestamp: null, path: [], frames: 0
 };
